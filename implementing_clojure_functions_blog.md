@@ -30,11 +30,15 @@ The source code for the functions and tests that are described below is on [gith
 
 ###Reduce
 
+#####Sequences
+
 `reduce` is the backbone of many of the Clojure *sequence* functions. Before we start implementing it, what exactly is a sequence?
 
 Alex Miller wrote a very clear [introduction to sequences](http://insideclojure.org/2015/01/02/sequences/). They are essentially *the key abstraction that connects immutable persistent collections and the sequence library*. The key sequence abstraction functions are `first`, `rest`, and `cons`. Calling `sequence` on a seqable - a collection, or other thing, that can produce a sequence - returns a sequence. Calling `seq` has the same effect, except that empty collections will return `nil`, rather than an empty sequence. Seqable collections include lists, vectors, sets, and maps. The sequence abstraction enables sequence functions - those that implement the sequence abstraction, including `reduce`, `count`, `filter`, `map`, and `pmap` - to handle any seqable data structure. This means that we can use the same function with any seqable collection. The sequence functions implicitly convert the input collection to a sequence.  
 
 Now we know what a sequence is, we can look at `reduce`, and implement our own version, `my-reduce`.
+
+#####Implementing my-reduce
 
 From the [Clojure docs](https://clojuredocs.org/clojure.core/reduce):
 
@@ -58,6 +62,47 @@ With the test passing, we can add a second test where we have a single item in t
 			(f val (first coll))
 			val))
 
-We can add tests using other Clojure seqables, including vectors and sets, and they still pass with our `my-reduce` function. 
+What about when we have more than one item in the collection? A next test could be: `(should= 6 (my-reduce + 1 [2 3]))` 
+
+To get this to pass we need to apply `f` to the result of applying `f` to `val` and `(first coll)`, and the second item. We can do this by recursively calling `my-reduce` with `f`, `(f val (first coll))`, and `(rest coll)`, and continuing until the collection is empty (when `(seq coll)` returns `nil`), at which point we will return `val`.
+
+	(defn my-reduce [f val coll]
+		(if (seq coll)
+			(my-reduce f (f val (first coll)) (rest coll))
+			val))   
+
+We can add more tests using other functions and Clojure seqables, including vectors and sets, and they still pass with our `my-reduce` function.
+
+All good, so let's move to the situation where `val` is not supplied. In this case it should return the result of applying `f` to the first 2 items in `coll`, then apply `f` to that result and the 3rd item, etc.
+
+We can write a new test, `(should= 1 (my-reduce + [1]))`, which fails becuase the wrong number of arguments are passed to `my-reduce`. To fix this, we can add an arity taking in just `f` and `coll`, which then calls `my-reduce`, passing in `(first coll)` to `val`, and `(rest coll)` to `coll`. Our `my-reduce` function already works when there is an empty `coll`, so this should work as long as we have at least one item in our collection.
+
+	(defn my-reduce 
+		([f coll]
+		 	(my-reduce f (first coll) (rest coll)))
+		([f val coll]
+			(if (seq coll)
+				(my-reduce f (f val (first coll)) (rest coll))
+				val)))
+
+This works as we wanted, and the test passes. We can add some additional tests to confirm that `my-reduce` handles multiple items in a collection in the way that we expect.
+
+Finally, if we pass in no `val` and an empty `coll`, we need to return the result of evaluating `f` with no arguments. Evaluating `+` with no arguments returns 0, so let's add a test for that: `(should= 0 (my-reduce + []))`.
+
+We need `my-reduce`, when passed `f` and `coll`, to evaluate `f` if `coll` is empty:
+
+	(defn my-reduce 
+		([f coll]
+			(if (seq coll)
+		 		(my-reduce f (first coll) (rest coll))
+		 		(f)))
+		([f val coll]
+			(if (seq coll)
+				(my-reduce f (f val (first coll)) (rest coll))
+				val)))
+
+#####Property-based testing
+
+
 
 
