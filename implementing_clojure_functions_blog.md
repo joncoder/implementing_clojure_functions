@@ -6,7 +6,7 @@
 
 Imagine you are hurtling toward the ground at 122 mph (the [approximate terminal velocity of a skydiver](https://en.wikipedia.org/wiki/Terminal_velocity)). You feel both exhilerated and in control. You understand your equipment, and have full confidence in your ability to land safely, and on target.
 
-Fast-forward a few days. You've been convinced to the top of a cliff to take your first [BASE jump](https://en.wikipedia.org/wiki/BASE_jumping). How confident are you now in your parachute, and your ability to safely use it in this new environment? Will you pass on the opportunity and miss out on the adrenaline-high of a lifetime, because you don't understand the full capabilities of the tools you have? Or worse, will you jump not knowing the limitations of your equipment, potentially to disasterous consequences?
+Fast-forward a few days. You've been convinced to the top of a cliff to take your first [BASE jump](https://en.wikipedia.org/wiki/BASE_jumping). How confident are you now in your parachute, and your ability to safely use it in this new environment? Will you pass on the opportunity for the adrenaline-high of a lifetime, because you don't understand the full capabilities of the tools you have? Or worse, will you jump without knowing the limitations of your equipment, potentially resulting in disasterous consequences?
 
 We face similar, albeit normally less directly life-altering, dilemmas on a regular basis as we code.
 
@@ -20,13 +20,13 @@ Whatever language you are working in, writing your own implementations of some o
 
 In this blog, we will be jumping into [Clojure](https://clojure.org/). We will implement versions of `reduce`, `count`, `filter`, `map`, and `pmap`. In doing so, we will explore, amongst other things, Clojure collections, lazy sequences, and futures. Along the way, we will also look at different testing paradigms.
 
-The goal for the models of the core functions that we implement below is to produce the same outputs as those in the core language. We will not be considering the processing efficiency of the functions in this blog.
+The goal for the models of the core functions that we implement is to generate the same output as those produced by the core language, given any valid input. For the purpose of this blog, we will not be considering the processing efficiency of the functions that we implement.
 
 ##Writing our Clojure functions
 
 ###Setup
 
-The source code for the functions and tests that are described below is on [github](https://github.com/jonathangraham/clojure_functions). They are structured in a [leiningen](http://leiningen.org/) project. I used [speclj](http://speclj.com) as the unit-test framework (run with `lein spec`), and [test.check](https://github.com/clojure/test.check) for the property-based tests (run with `lein test`).
+The source code for the functions and tests that are described below is on [github](https://github.com/jonathangraham/clojure_functions). They are structured in a [leiningen](http://leiningen.org/) project. The unit-test framework used is [speclj](http://speclj.com) (run with `lein spec`), and [test.check](https://github.com/clojure/test.check) is used for the property-based tests (run with `lein test`).
 
 ###Reduce
 
