@@ -123,3 +123,40 @@ If we previously thought that we needed to pass an initial value as well as a co
 
 We also now know some of the limitations of `reduce`. If we are going to use `reduce` and there is a possibility that it could get called with no initial value and an empty collection, then the function passed to `reduce` will be evaluated. If the function, like `-`, won't accept zero arguments then our program will error. To avoid this scenario we need to make sure that we write our functions so that they can be evaluated with no arguments. Alternatively, we now know that we can write our own `reduce` function, and so could modify it so that it defines differently what to do when passed just an empty collection.
 
+###Count
+
+Now we have written our implementation of `reduce`, let's move on to `count`:
+
+`(count coll)`
+*Returns the number of items in the collection. (count nil) returns 0.  Also works on strings, arrays, and Java Collections and Maps.*
+
+We can start with a test where we pass an empty collection, `(should= 0 (my-count '())`, and get this to pass just by returning 0. This would also allow the test with `nil` to pass. If we add a test where we pass a collection containing a single item, we need to modify our function, as this time it needs to return 1. Again, we can use `(seq coll)`, which will return true if there are one or more items in the collection.
+
+	(defn my-count [coll]
+		(if (seq coll)
+			1
+			0))
+
+Great, so now let's get this working for a case where we have more than one item in the collection: `(should= 2 (my-count '(1 2)))`. We can do this recursively by starting `result` at 0 and adding 1 every time we move a position along the collection until the collection is empty, at which point we simply return `result`:
+
+	(defn my-count [coll]
+		(loop [coll coll result 0]
+			(if (seq coll)
+				(recur (rest coll) (inc result))
+				result)))
+
+This passes, and we can add more tests to confirm that the function is working as we expect. Now we have a passing test suite, we can refactor. We have already written `my-reduce`, so let's see if we can use this to define `my-count`. We would want to set an initial `val` to 0 so that `my-reduce` returns 0 for an empty collection. If the collection is not empty, we need a function that will increment the count result each time that the function is called. The function will take two arguments, the count result which is initially 0 and the collection, but it is only concerned with the result, which it will increment by 1 every time that it is called. Since the function passed to `my-reduce` doesn't care about the collection, we can use an `_` rather than name it. If we put all this together then we get:
+
+	(defn my-count [coll]
+		(my-reduce (fn [result _](inc result)) 0 coll))
+
+This successfully passes the test suite, and now looks much cleaner than the code we had before. We can also write a property-based test to confirm that the function returns the same results as `count` across generated inputs. 
+
+A disadvantage of the refactor, though, is that we have lost the recur special operator that we used before, which does constant-space recursive looping by rebinding and jumping to the nearest enclosing loop or function frame. With this gone we consume stack space as we make our recursive calls, and so risk stack overflow.
+
+
+
+
+
+
+
