@@ -200,7 +200,76 @@ Let's re-write our `my-filter` function so that it is lazy. We can start with `l
 					(cons (first coll) (my-filter pred (rest coll))) 
 					(my-filter pred (rest coll))))))
 
-and our test suite still passes. We are now evaluating lazily, and we have our basic implementation of `filter`. So, what have we learned from writing our own version? Well, `filter` is evaluated lazily, which can give us efficiency benefits, but it also means that the collection type we return with our filtered data set is different from the input type. If we want to continue processing with the same collection type that we had then we will have to pass the output from filter `into` the required collection type, e.g. `(into [] (my-filter even? [0 1 2 3 4 5]))` will return `[0 2 4]`.
+and our test suite still passes. We are now evaluating lazily, and we have our basic implementation of `filter`. For the purposes of this blog we will not cover the scenario where no collection is provided to filter, which would return a transducer.
+
+So, what have we learned from writing our own version? Well, `filter` is evaluated lazily, which can give us efficiency benefits, but it also means that the collection type we return with our filtered data set is different from the input type. If we want to continue processing with the same collection type that we had then we will have to pass the output from filter `into` the required collection type, e.g. `(into [] (my-filter even? [0 1 2 3 4 5]))` will return `[0 2 4]`.
+
+###Map
+
+`(map f)` `(map f coll)` `(map f c1 c2)` `(map f c1 c2 c3)` `(map f c1 c2 c3 & colls)`
+*Returns a lazy sequence consisting of the result of applying f to the set of first items of each coll, followed by applying f to the set of second items in each coll, until any one of the colls is exhausted.  Any remaining items in other colls are ignored. Function f should accept number-of-colls arguments. Returns a transducer when no collection is provided.*
+
+Again, for the purpose of this blog post we are not going to consider the situation where no collection is passed. 
+
+We can use the same function structure as we had in `my-filter`, but in the `when` block we simply need to `cons` the result from applying the function `f` to the first item to everything that will follow. This will then all evaluate when we reach the tail position of the recursion, which is when we have an empty collection.
+
+	(defn my-map [f coll]
+			(lazy-seq (when (seq coll)
+					(cons (f (first coll)) (my-map f (rest coll))))))
+
+With passing tests using single collections we can move to consider the situation where two collections are passed to `my-map`. We need to apply the function to the first items of each collection, and then to the second, etc, and continue whilst both collections are non-empty. For example, `(should= '(4 6) (my-map + [1 2] [3 4]))`.
+
+We can extend `my-map` to also take `[f c1 c2]`, and we want to continue `when` both `c1` and `c2` are sequences. We need to apply `f` to the first item of both `c1` and `c2` and then recur with the rest of both collections.
+
+	(defn my-map 
+		([f coll]
+			(lazy-seq (when (seq coll)
+					(cons (f (first coll)) (my-map f (rest coll))))))
+		([f c1 c2]
+			(lazy-seq (when (and (seq c1) (seq c2))
+					(cons (f (first c1) (first c2)) (my-map f (rest c1) (rest c2)))))))
+
+This works! So, how about when we have more than two collections: `(should= '(9 12) (my-map + '(1 2) '(3 4) '(5 6)))`.
+
+Now we can again extend `my-map`, and this time take in any number of arguments `[f c1 c2 & more]`. To handle an unknown number of arguments we can start a `recur` loop, setting `c1` to the first collection passed in, `c2` to the second collection, and `r` to the rest. We will then `recur`, passing `(my-map f c1 c2)` back in as `c1`, `(first r)` as `c2` and `(rest r)` as `r`, and continue this until we only have two collections left. At this point `(seq r)` will return nil and we can escape from our recursive loop. We can then evaluate the final result by calling `(my-map f c1 c2)`.
+
+	(defn my-map 
+		([f coll]
+			(lazy-seq (when (seq coll)
+					(cons (f (first coll)) (my-map f (rest coll))))))
+		([f c1 c2]
+			(lazy-seq (when (and (seq c1) (seq c2))
+					(cons (f (first c1) (first c2)) (my-map f (rest c1) (rest c2))))))
+		([f c1 c2 & more]
+			(loop [c1 c1 c2 c2 r more]
+				(if (empty? r)
+					(my-map f c1 c2)
+					(recur (my-map f c1 c2) (first r) (rest r))))))
+
+This now passes our test suite, but what about non-commutative functions? 
+
+`(should= '([:a :d :g] [:b :e :h] [:c :f :i]) (apply my-map vector [[:a :b :c][:d :e :f][:g :h :i]]))`
+
+This test fails, because we get a lazy sequence of vectors by calling `(my-map f c1 c2)`, and this then becomes `c1` for the next iteration, resulting in a multi-dimensional vector. So, how do we solve this?
+
+What we want is to convert the input collections to a single sequence, where the first item is a collection of all the first elements, the second item is a collection of all the second elements, etc. If we have this collection of reordered collections we can just map the result of applying the function to each collection in turn. We can create a single collection by adding the first collection, `c1`, to the other collections, `colls`. Let's then pass this concatenated collection to a function named reorder. 
+
+We need `reorder` to take the first item from each collection and map it to a new collection, and add this to all the other reordered collections to come until one of the collections is empty. Since the two functions, `my-map` and `reorder`, are mutually recursive, we need to delare them. If we put this all together we get:
+
+	(declare my-map)
+
+	(defn reorder [c]
+	        (when (every? seq c)
+	           	(cons (my-map first c) (reorder (my-map rest c)))))
+
+	(defn my-map 
+		([f coll]
+			(lazy-seq (when (seq coll)
+					(cons (f (first coll)) (my-map f (rest coll))))))
+		([f c1 & colls]
+	     		(my-map #(apply f %) (reorder (cons c1 colls)))))
+
+We now have much cleaner code, and it works for non-commutative functions!
 
 
 
