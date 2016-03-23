@@ -16,9 +16,9 @@ This power and ease of use does come at a cost, though. Do we really understand 
 
 ##Implementing models of core language features
 
-Whatever language you are working in, writing your own implementations of some of the core features is a great way to gain the fundamental understanding that you need to be fully in control of your code. The implementations do not necessarily need to replicate all aspects of the core function, and can just model certain behaviours.  
+Whatever language you are working in, writing your own implementations of some of the core features is a great way to gain the fundamental understanding that you need to be fully in control of your code. It is especially valuable to do as an exercise when learning a new language, although is worth doing at any time. The implementations do not necessarily need to replicate all aspects of the core function, and can just model certain behaviours.  
 
-In this blog, we will be jumping into [Clojure](https://clojure.org/). We will implement versions of `reduce`, `count`, `filter`, `map`, and `pmap`. In doing so, we will explore, amongst other things, Clojure collections, lazy sequences, and futures. Along the way, we will also look at different testing paradigms.
+In this blog, we will be jumping into [Clojure](https://clojure.org/). We will implement versions of `reduce`, `count`, `filter`, `map`, and `pmap`. In doing so, we will explore, amongst other things, recursion, lazy sequences, and futures. Along the way, we will also look at different testing paradigms.
 
 The goal for the models of the core functions that we implement is to generate the same output as those produced by the core language, given any valid input. For the purpose of this blog, we will not be considering the processing efficiency of the functions that we implement.
 
@@ -30,5 +30,16 @@ The source code for the functions and tests that are described below is on [gith
 
 ###Reduce
 
-                
+`reduce` is the backbone of many of the Clojure *sequence* functions. Before we start implementing it, what exactly is a sequence?
+
+Alex Miller wrote a very clear [introduction to sequences](http://insideclojure.org/2015/01/02/sequences/). They are essentially *the key abstraction that connects immutable persistent collections and the sequence library*. The key sequence abstraction functions are `first`, `rest`, and `cons`. Calling `sequence` on a seqable - a collection, or other thing, that can produce a sequence - returns a sequence. Calling `seq` has the same effect, except that empty collections will return `nil`, rather than an empty sequence. Seqable collections include lists, vectors, sets, and maps. The sequence abstraction enables sequence functions - those that implement the sequence abstraction, including `reduce`, `count`, `filter`, `map`, and `pmap` - to handle any seqable data structure. This means that we can use the same `reduce` function with any seqable collection. 
+
+Now we now what a sequence is, we can look at `reduce`.
+
+From the [Clojure docs](https://clojuredocs.org/clojure.core/reduce):
+
+`(reduce f coll)``(reduce f val coll)`
+*f should be a function of 2 arguments. If val is not supplied, returns the result of applying f to the first 2 items in coll, then applying f to that result and the 3rd item, etc. If coll contains no items, f must accept no arguments as well, and reduce returns the result of calling f with no arguments.  If coll has only 1 item, it is returned and f is not called.  If val is supplied, returns the result of applying f to val and the first item in coll, then applying f to that result and the 2nd item, etc. If coll contains no items, returns val and f is not called.*
+
+There is a lot to do, so let's build it up slowly in a Test Driven Development (TDD) way.
 
