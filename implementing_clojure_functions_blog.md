@@ -103,6 +103,18 @@ We need `my-reduce`, when passed `f` and `coll`, to evaluate `f` if `coll` is em
 
 #####Property-based testing
 
+How many unit tests are enough to have confidence that the code is working as intended? Are there ever enough? We could keep adding more and more, but this doesn't gurantee that we'll cover all the edge cases where bugs like to lie, and every additional test is more code that needs maintaining.
 
+Given `reduce` can take such a large range of inputs - different functions, different collection types, different value types - it is impossible to write unit tests to cover the entire scope of possibilities. It is also easy to miss potential edge cases. Property-based tests give us an alternative approach to testing, that makes it easier to automate testing across a wider range of the possible inputs.
+
+Rather than asserting that specific inputs to your code should result in a specific output, as with unit tests, property-based tests make statements about the expected behaviour of the code that should hold true for the entire domain of possible inputs. These statements are then verified for many different (pseudo)randomly generated inputs.
+
+Clojure has [test.check](https://github.com/clojure/test.check), written by [Reid Draper](https://twitter.com/reiddraper), to do the heavy lifting for us.
+
+Each property-based test includes the number of examples to be tested and the universal quantification, `prop/for-all`, where for all valid inputs to the function this property should hold true. `prop/for-all` takes two arguments. The first is a binding of a generator to a variable name, in a similar way to a `let` clause. The generators are peudorandom, and start with the simplist cases so that failures from common edge-cases can be found quickly. The second argument is the behaviour statement, where an assertion that a boolean condition will return true is made.
+
+To test that our `my-reduce` function is valid, we simply need to assert that it returns the same as `reduce`, when passed any seqable collection, containing any Clojure value, either with or without an initial value. We can create the generator `gen/any` for the initial value to be passed in. To generate the collections we can use combinator generators, so that each value can be a different seqable collection, containing any Clojure values.  
+
+It is possible to run the test with thousands of inputs, and in this way vastly increase our confidence that our implementation behaves the same as the core Clojure one. For more detail on property-based testing of these Clojure function check out [Property-Based Testing in Clojure](http://jonathangraham.github.io/2016/01/07/property_based_testing_clojure_functions/).
 
 
