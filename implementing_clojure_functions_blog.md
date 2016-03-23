@@ -154,6 +154,53 @@ This successfully passes the test suite, and now looks much cleaner than the cod
 
 A disadvantage of the refactor, though, is that we have lost the recur special operator that we used before, which does constant-space recursive looping by rebinding and jumping to the nearest enclosing loop or function frame. With this gone we consume stack space as we make our recursive calls, and so risk stack overflow.
 
+###Filter
+
+`(filter pred)` `(filter pred coll)`
+*Returns a lazy sequence of the items in coll for which (pred item) returns true. pred must be free of side-effects. Returns a transducer when no collection is provided.*
+
+We can build up a recursive function in a similar way that we did for `my-count`. If there are no items in our `coll` then intuitively we might expect that we could just return the `coll`. However, `filter` needs to return a lazy sequence.
+
+A lazy sequence can be created by the macro `lazy-seq`. This takes a body of expressions that returns an ISeq or nil, and yields a Seqable object that will invoke the body only the first time seq
+is called, and will cache the result and return it on all subsequent seq calls.
+
+We can write a first test, where we use the predicate `zero?` (will return true if the item is 0) and pass an empty vector. The output should be of class clojure.lang.LazySeq (`(should= clojure.lang.LazySeq (class (my-filter zero? [])))`), and have zero items (`(should= 0 (my-count (my-filter zero? [])))`).
+
+We can get these tests to pass just by returning `(lazy-seq coll)`, which will create the lazy sequence.
+
+Let's now add a test that is going to filter a collection that contains items: `(should= '(0 2 4 6 8) (my-filter even? (range 10)))`.
+
+To demonstrate how lazy sequences work, let's first build a function that doesn't implement them correctly. 
+
+To handle collections containing items we can start our recursive call by setting `input` to the `coll` that we pass in and `result` to `[]`. We could have `result` initialised with any collection, or indeed an empty collection of the same type as the input, but by using a vector we can use `conj` to add items to the end, and not worry that different data sets use `conj` in different ways. 
+
+We will then consider each item in turn, recursing with `(rest input)`, until the collection is empty, at which point we want to return the `result` as a lazy sequence. So, what do we do with each item? We want to check if `pred` on the item returns true, and if it does `conj` the item to our `result` and recurse this, and if not just recurse the unaltered `result`. 
+
+	(defn my-filter [pred coll]
+		(loop [input coll result []]
+			(if (seq input)
+				(recur 	(rest input) 
+					(if (pred (first input))
+						(conj result (first input)) 
+						result))
+				(lazy-seq result))))
+
+This passes, and we can add extra tests, but we are just converting the `result` to a lazy sequence at the end. What we want is for the computation to be lazy.
+
+We could move `lazy-seq` to the front of the recur loop, but we would still not be behaving lazily. Every time we loop through we evaluate if the predicate is true, and we update our `result` accordingly. If we were lazy we would not evaluate until we reached the tail of the recursion.
+
+In terms of laziness, there is a difference between `conj` and `cons`. The behaviour of `conj` depends on the collection type, so will need to be realised immediately. However, `cons` adds an item to the start of a collection, with everything else coming after, and so can be evaluated lazily. 
+
+Let's re-write our `my-filter` function so that it is lazy. We can start with `lazy-seq` and pass it a `when` block, using the predicate `(seq coll)`, as it's body of expression. As before, the `when` block will exit with an empty collection. If we do have a sequence we want to apply the filter predicate to the first item of the collection. If the predicate returns true we can `cons` the `(first coll)` onto the filtered collection to come, `(my-filter pred (rest coll))`. If the predicate returns false then we simply call `my-filter` with the `(rest coll)`. Nothing will get evaluated until we reach the tail of the recursion, when the collection is empty. If we put this altogether we get:
+
+	(defn my-filter [pred coll]
+		(lazy-seq 
+			(when (seq coll)
+				(if (pred (first coll))
+					(cons (first coll) (my-filter pred (rest coll))) 
+					(my-filter pred (rest coll))))))
+
+and our test suite still passes. We are now evaluating lazily, and we have our basic implementation of `filter`. So, what have we learned from writing our own version? Well, `filter` is evaluated lazily, which can give us efficiency benefits, but it also means that the collection type we return with our filtered data set is different from the input type. If we want to continue processing with the same collection type that we had then we will have to pass the output from filter `into` the required collection type, e.g. `(into [] (my-filter even? [0 1 2 3 4 5]))` will return `[0 2 4]`.
 
 
 
