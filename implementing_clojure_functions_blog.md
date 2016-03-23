@@ -32,14 +32,32 @@ The source code for the functions and tests that are described below is on [gith
 
 `reduce` is the backbone of many of the Clojure *sequence* functions. Before we start implementing it, what exactly is a sequence?
 
-Alex Miller wrote a very clear [introduction to sequences](http://insideclojure.org/2015/01/02/sequences/). They are essentially *the key abstraction that connects immutable persistent collections and the sequence library*. The key sequence abstraction functions are `first`, `rest`, and `cons`. Calling `sequence` on a seqable - a collection, or other thing, that can produce a sequence - returns a sequence. Calling `seq` has the same effect, except that empty collections will return `nil`, rather than an empty sequence. Seqable collections include lists, vectors, sets, and maps. The sequence abstraction enables sequence functions - those that implement the sequence abstraction, including `reduce`, `count`, `filter`, `map`, and `pmap` - to handle any seqable data structure. This means that we can use the same `reduce` function with any seqable collection. 
+Alex Miller wrote a very clear [introduction to sequences](http://insideclojure.org/2015/01/02/sequences/). They are essentially *the key abstraction that connects immutable persistent collections and the sequence library*. The key sequence abstraction functions are `first`, `rest`, and `cons`. Calling `sequence` on a seqable - a collection, or other thing, that can produce a sequence - returns a sequence. Calling `seq` has the same effect, except that empty collections will return `nil`, rather than an empty sequence. Seqable collections include lists, vectors, sets, and maps. The sequence abstraction enables sequence functions - those that implement the sequence abstraction, including `reduce`, `count`, `filter`, `map`, and `pmap` - to handle any seqable data structure. This means that we can use the same function with any seqable collection. The sequence functions implicitly convert the input collection to a sequence.  
 
-Now we now what a sequence is, we can look at `reduce`.
+Now we know what a sequence is, we can look at `reduce`, and implement our own version, `my-reduce`.
 
 From the [Clojure docs](https://clojuredocs.org/clojure.core/reduce):
 
 `(reduce f coll)``(reduce f val coll)`
 *f should be a function of 2 arguments. If val is not supplied, returns the result of applying f to the first 2 items in coll, then applying f to that result and the 3rd item, etc. If coll contains no items, f must accept no arguments as well, and reduce returns the result of calling f with no arguments.  If coll has only 1 item, it is returned and f is not called.  If val is supplied, returns the result of applying f to val and the first item in coll, then applying f to that result and the 2nd item, etc. If coll contains no items, returns val and f is not called.*
 
-There is a lot to do, so let's build it up slowly in a Test Driven Development (TDD) way.
+There is a lot to do, so let's build it up slowly in a Test Driven Development (TDD) way. We can start with the case of two arguments and where `coll` contains no items, so should return `val`. A first test could use the addition function, an initial value of 1, and an empty list.
+
+    (it "result 1 for addition function, with val of 1 and empty collection"
+		(should= 1 (my-reduce + 1 '()))))
+
+We can get this test to pass by defining `my-reduce` with three parameters, and returning `val`.
+
+    (defn my-reduce [f val coll]
+	    val)
+
+With the test passing, we can add a second test where we have a single item in the collection: `(should= 2 (my-reduce + 1 '(1)))`. This fails, so let's fix it. In order to get this test to pass, we need to apply the function `+` to `val` and the first element of `coll`: `(f val (first coll))`. We can utilize our knowledge that calling `seq` on an empty seqable returns `nil`, which is falsy, whereas calling `seq` on a seqable with at least one item returns a sequence, which is truthy. This means we can direct the function to either return `val`, or the product of applying `f` to `val` and `(first coll)`: 
+
+	(defn my-reduce [f val coll]
+		(if (seq coll)
+			(f val (first coll))
+			val))
+
+We can add tests using other Clojure seqables, including vectors and sets, and they still pass with our `my-reduce` function. 
+
 
