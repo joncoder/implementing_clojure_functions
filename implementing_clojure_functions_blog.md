@@ -117,4 +117,9 @@ To test that our `my-reduce` function is valid, we simply need to assert that it
 
 It is possible to run the test with thousands of inputs, and in this way vastly increase our confidence that our implementation behaves the same as the core Clojure one. For more detail on property-based testing of these Clojure function check out [Property-Based Testing in Clojure](http://jonathangraham.github.io/2016/01/07/property_based_testing_clojure_functions/).
 
+#####What we learned about reduce
+
+If we previously thought that we needed to pass an initial value as well as a collection to `reduce`, we now have extended the power and utility we wield over this fundamental function. Also, even if we have a function that requires two arguments, we know that we can successfully pass this to `reduce` with only the collection. We can demonstrate this with `add`: `(defn add [x y] (+ x y))`. If we just pass a single argument to `add` we will get an argument error. However, calling `(reduce add [1])` will return 1, because the first item of the collection will be defined as `val`, and given the rest of the collection is empty, `reduce` will just return `val` and the function is not called.  
+
+We also now know some of the limitations of `reduce`. If we are going to use `reduce` and there is a possibility that it could get called with no initial value and an empty collection, then the function passed to `reduce` will be evaluated. If the function, like `-`, won't accept zero arguments then our program will error. To avoid this scenario we need to make sure that we write our functions so that they can be evaluated with no arguments. Alternatively, we now know that we can write our own `reduce` function, and so could modify it so that it defines differently what to do when passed just an empty collection.
 
