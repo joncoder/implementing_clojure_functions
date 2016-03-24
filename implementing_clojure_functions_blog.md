@@ -42,7 +42,7 @@ Now we know what a sequence is, we can look at `reduce`, and implement our own v
 
 From the [Clojure docs](https://clojuredocs.org/clojure.core/reduce):
 
-`(reduce f coll)``(reduce f val coll)`
+`(reduce f coll)` `(reduce f val coll)`
 *f should be a function of 2 arguments. If val is not supplied, returns the result of applying f to the first 2 items in coll, then applying f to that result and the 3rd item, etc. If coll contains no items, f must accept no arguments as well, and reduce returns the result of calling f with no arguments.  If coll has only 1 item, it is returned and f is not called.  If val is supplied, returns the result of applying f to val and the first item in coll, then applying f to that result and the 2nd item, etc. If coll contains no items, returns val and f is not called.*
 
 There is a lot to do, so let's build it up slowly in a Test Driven Development (TDD) way. We can start with the case of two arguments and where `coll` contains no items, so should return `val`. A first test could use the addition function, an initial value of 1, and an empty list.
@@ -64,7 +64,7 @@ With the test passing, we can add a second test where we have a single item in t
 
 What about when we have more than one item in the collection? A next test could be: `(should= 6 (my-reduce + 1 [2 3]))` 
 
-To get this to pass we need to apply `f` to the result of applying `f` to `val` and `(first coll)`, and the second item. We can do this by recursively calling `my-reduce` with `f`, `(f val (first coll))`, and `(rest coll)`, and continuing until the collection is empty (when `(seq coll)` returns `nil`), at which point we will return `val`.
+To get this test to pass we need to apply `f` to `val` and `(first coll)`, and then apply `f` to this result and the second item. We can do this by recursively calling `my-reduce` with `f`, `(f val (first coll))`, and `(rest coll)`, and continuing until the collection is empty (when `(seq coll)` returns `nil`), at which point we will return `val`.
 
 	(defn my-reduce [f val coll]
 		(if (seq coll)
@@ -103,7 +103,7 @@ We need `my-reduce`, when passed `f` and `coll`, to evaluate `f` if `coll` is em
 
 #####Property-based testing
 
-How many unit tests are enough to have confidence that the code is working as intended? Are there ever enough? We could keep adding more and more, but this doesn't gurantee that we'll cover all the edge cases where bugs like to lie, and every additional test is more code that needs maintaining.
+How many unit tests are enough to have confidence that the code is working as intended? Are there ever enough? We could keep adding more and more, but this doesn't gurantee that we'll cover all the edge cases where bugs like to hide, and every additional test is more code that needs maintaining.
 
 Given `reduce` can take such a large range of inputs - different functions, different collection types, different value types - it is impossible to write unit tests to cover the entire scope of possibilities. It is also easy to miss potential edge cases. Property-based tests give us an alternative approach to testing, that makes it easier to automate testing across a wider range of the possible inputs.
 
@@ -115,13 +115,13 @@ Each property-based test includes the number of examples to be tested and the un
 
 To test that our `my-reduce` function is valid, we simply need to assert that it returns the same as `reduce`, when passed any seqable collection, containing any Clojure value, either with or without an initial value. We can create the generator `gen/any` for the initial value to be passed in. To generate the collections we can use combinator generators, so that each value can be a different seqable collection, containing any Clojure values.  
 
-It is possible to run the test with thousands of inputs, and in this way vastly increase our confidence that our implementation behaves the same as the core Clojure one. For more detail on property-based testing of these Clojure function check out [Property-Based Testing in Clojure](http://jonathangraham.github.io/2016/01/07/property_based_testing_clojure_functions/).
+It is possible to run the test with thousands of inputs, and in this way vastly increase our confidence that our implementation behaves the same as the core Clojure one. For more detail on property-based testing of these Clojure functions take a look at [Property-Based Testing in Clojure](http://jonathangraham.github.io/2016/01/07/property_based_testing_clojure_functions/).
 
 #####What we learned about reduce
 
 If we previously thought that we needed to pass an initial value as well as a collection to `reduce`, we now have extended the power and utility we wield over this fundamental function. Also, even if we have a function that requires two arguments, we know that we can successfully pass this to `reduce` with only the collection. We can demonstrate this with `add`: `(defn add [x y] (+ x y))`. If we just pass a single argument to `add` we will get an argument error. However, calling `(reduce add [1])` will return 1, because the first item of the collection will be defined as `val`, and given the rest of the collection is empty, `reduce` will just return `val` and the function is not called.  
 
-We also now know some of the limitations of `reduce`. If we are going to use `reduce` and there is a possibility that it could get called with no initial value and an empty collection, then the function passed to `reduce` will be evaluated. If the function, like `-`, won't accept zero arguments then our program will error. To avoid this scenario we need to make sure that we write our functions so that they can be evaluated with no arguments. Alternatively, we now know that we can write our own `reduce` function, and so could modify it so that it defines differently what to do when passed just an empty collection.
+We also now know some of the limitations of `reduce`. If we are going to use `reduce` and there is a possibility that it could get called with no initial value and an empty collection, then the function passed to `reduce` will be evaluated on its own. If the function, like `-`, won't accept zero arguments then our program will error. To avoid this scenario we need to make sure that we write our functions so that they can be evaluated with no arguments. Alternatively, we now know that we can write our own `reduce` function, and so could modify it so that it defines differently what to do when passed just an empty collection.
 
 ###COUNT
 
@@ -200,7 +200,7 @@ Let's re-write our `my-filter` function so that it is lazy. We can start with `l
 					(cons (first coll) (my-filter pred (rest coll))) 
 					(my-filter pred (rest coll))))))
 
-and our test suite still passes. We are now evaluating lazily, and we have our basic implementation of `filter`. For the purposes of this blog we will not cover the scenario where no collection is provided to filter, which would return a transducer.
+Our test suite still passes. We are now evaluating lazily, and we have our basic implementation of `filter`. For the purposes of this blog we will not cover the scenario where no collection is provided to filter, which would return a transducer.
 
 So, what have we learned from writing our own version? Well, `filter` is evaluated lazily, which can give us efficiency benefits, but it also means that the collection type we return with our filtered data set is different from the input type. If we want to continue processing with the same collection type that we had then we will have to pass the output from filter `into` the required collection type, e.g. `(into [] (my-filter even? [0 1 2 3 4 5]))` will return `[0 2 4]`.
 
@@ -273,7 +273,10 @@ We now have much cleaner code, and it works for non-commutative functions!
 
 ###PMAP
 
-Finally we are going to look at `pmap`, which is *like map, except f is applied in parallel*. This function is *only useful for computationally intensive functions where the time of f dominates the coordination overhead*.
+Finally we are going to look at `pmap`.
+
+`(pmap f coll)` `(pmap f coll & colls)`
+*Like map, except f is applied in parallel. Semi-lazy in that the parallel computation stays ahead of the consumption, but doesn't realize the entire result unless required. Only useful for computationally intensive functions where the time of f dominates the coordination overhead. which is *like map, except f is applied in parallel*.
 
 We need `my-pmap` to return the same result as `map`, so we can write a first test: `(should= (map inc [1 2]) (my-pmap inc [1 2]))`. We can get this test to pass by writing the function to just call `my-map`.
 
@@ -321,7 +324,7 @@ However, when we run our tests the last test fails. We can modify the test by wr
 
 Now when we run the test it tells us that it takes just over 4000 ms to execute - the same time that it takes `map`. So, what is wrong? Again, it is all down to lazy sequences. When we set `results` we are just generating the lazy sequence, and not evaluating it. We only evaluate `results` when we call `deref`, so each future is generated and then immediately dereferenced, with the thread blocked until the result is available. In this way, we generate the result of applying the function to each item in the array in sequence, and not in parallel.
 
-To make the function work in parallel we need to generate all of the futures before we start to dereference. To do this we can make use of the fact that when we use `conj` the resut will be realised immediately. We can recursively iterate through the collection, applying `f` as a future to each item and `conj`ing this to an accumulator, `acc`, initialised as an empty vector. In this manner we initiate each future as we iterate through. We can then return `acc` as the escape from the recursion after we have iterated through all items. Now we have a collection of futures, which we can bind to `results`, and so we can map this collection by applying `deref` to return the futures.
+To make the function work in parallel we need to generate all of the futures before we start to dereference, hence why `pmap` is semi-lazy. To do this we can make use of the fact that when we use `conj` the resut will be realised immediately. We can recursively iterate through the collection, applying `f` as a future to each item and `conj`ing this to an accumulator, `acc`, initialised as an empty vector. In this manner we initiate each future as we iterate through. We can then return `acc` as the escape from the recursion after we have iterated through all items. Now we have a collection of futures, which we can bind to `results`, and so we can map this collection by applying `deref` to return the futures.
 
 	(defn my-pmap
 		([f coll]
@@ -358,10 +361,10 @@ This works, and as with all the previous functions we can write a property-based
 
 ##Conclusions
 
-As an experienced skydiver you may feel confident about taking a first BASE jump. However, there are a lot of considerations, a lot that you need to understand, before you can take the leap in relative safety. The higher altitude of a skydive means you can reach faster speeds before deploying your parachute, whereas it is normally not possible to reach terminal velocity during a BASE jump. The lower airspeeds during a BASE jump mean jumpers have less aerodynamic control of their bodies, so a clean parachute deployment is more difficult. The lower control and jumping close to a structure also vastly increases the risk of a collision, both before and after parachute deployment. As such, the inputs to the jump - the position of the jumper as they leap and the equipment that they use - are critical to a successful flight.
+As an experienced skydiver you may feel confident about taking a first BASE jump. However, there are a lot of considerations, a lot that you need to understand, before you can take the leap in relative safety. The higher altitude of a skydive means you can reach faster speeds before deploying your parachute, whereas it is normally not possible to reach terminal velocity during a BASE jump. The lower airspeeds during a BASE jump mean jumpers have less aerodynamic control of their bodies, so a clean parachute deployment is more difficult. Also, the lower control, together with jumping close to a structure, vastly increases the risk of a collision, both before and after parachute deployment. As such, the inputs to the jump - the position of the jumper as they leap and the equipment that they use - are critical to a successful flight.
 
 The same requirement to really understand how everything is working is equally as relevent to software development, or any other activity for that matter, although the consequences might not be as immediately life-impacting.
 
 Every day when we write code, in whichever language we chose, our life is made easier and more efficient by the use of the core functions of the language. However, reliance on the hidden code comes at a risk, and if you don't fully understand what is happening then you risk undesired outcomes, and you may also be missing out on additional functionality. We should all strive to unveil the magic at the surface, and really dig deep so as to better know our craft.
 
-The source code for the above implementations of `reduce`, `count`, `filter`, `map` and `pmap`, together with the unit and property tests, are all available on [github](https://github.com/jonathangraham/clojure_functions).
+The source code for the above implementations of `reduce`, `count`, `filter`, `map` and `pmap`, together with the unit and property-based tests, are all available on [github](https://github.com/jonathangraham/clojure_functions).
