@@ -276,7 +276,7 @@ We now have much cleaner code, and it works for non-commutative functions!
 Finally we are going to look at `pmap`.
 
 `(pmap f coll)` `(pmap f coll & colls)`
-*Like map, except f is applied in parallel. Semi-lazy in that the parallel computation stays ahead of the consumption, but doesn't realize the entire result unless required. Only useful for computationally intensive functions where the time of f dominates the coordination overhead. which is *like map, except f is applied in parallel*.
+*Like map, except f is applied in parallel. Semi-lazy in that the parallel computation stays ahead of the consumption, but doesn't realize the entire result unless required. Only useful for computationally intensive functions where the time of f dominates the coordination overhead.*
 
 We need `my-pmap` to return the same result as `map`, so we can write a first test: `(should= (map inc [1 2]) (my-pmap inc [1 2]))`. We can get this test to pass by writing the function to just call `my-map`.
 
