@@ -28,7 +28,7 @@ The goal for the models of the core functions that we implement is to generate t
 
 The source code for the functions and tests that are described below is on [github](https://github.com/jonathangraham/clojure_functions). They are structured in a [leiningen](http://leiningen.org/) project. The unit-test framework used is [speclj](http://speclj.com) (run with `lein spec`), and [test.check](https://github.com/clojure/test.check) is used for the property-based tests (run with `lein test`).
 
-###Reduce
+###REDUCE
 
 #####Sequences
 
@@ -123,7 +123,7 @@ If we previously thought that we needed to pass an initial value as well as a co
 
 We also now know some of the limitations of `reduce`. If we are going to use `reduce` and there is a possibility that it could get called with no initial value and an empty collection, then the function passed to `reduce` will be evaluated. If the function, like `-`, won't accept zero arguments then our program will error. To avoid this scenario we need to make sure that we write our functions so that they can be evaluated with no arguments. Alternatively, we now know that we can write our own `reduce` function, and so could modify it so that it defines differently what to do when passed just an empty collection.
 
-###Count
+###COUNT
 
 Now we have written our implementation of `reduce`, let's move on to `count`:
 
@@ -154,7 +154,7 @@ This successfully passes the test suite, and now looks much cleaner than the cod
 
 A disadvantage of the refactor, though, is that we have lost the recur special operator that we used before, which does constant-space recursive looping by rebinding and jumping to the nearest enclosing loop or function frame. With this gone we consume stack space as we make our recursive calls, and so risk stack overflow.
 
-###Filter
+###FILTER
 
 `(filter pred)` `(filter pred coll)`
 *Returns a lazy sequence of the items in coll for which (pred item) returns true. pred must be free of side-effects. Returns a transducer when no collection is provided.*
@@ -204,7 +204,7 @@ and our test suite still passes. We are now evaluating lazily, and we have our b
 
 So, what have we learned from writing our own version? Well, `filter` is evaluated lazily, which can give us efficiency benefits, but it also means that the collection type we return with our filtered data set is different from the input type. If we want to continue processing with the same collection type that we had then we will have to pass the output from filter `into` the required collection type, e.g. `(into [] (my-filter even? [0 1 2 3 4 5]))` will return `[0 2 4]`.
 
-###Map
+###MAP
 
 `(map f)` `(map f coll)` `(map f c1 c2)` `(map f c1 c2 c3)` `(map f c1 c2 c3 & colls)`
 *Returns a lazy sequence consisting of the result of applying f to the set of first items of each coll, followed by applying f to the set of second items in each coll, until any one of the colls is exhausted.  Any remaining items in other colls are ignored. Function f should accept number-of-colls arguments. Returns a transducer when no collection is provided.*
@@ -270,6 +270,92 @@ We need `reorder` to take the first item from each collection and map it to a ne
 	     		(my-map #(apply f %) (reorder (cons c1 colls)))))
 
 We now have much cleaner code, and it works for non-commutative functions!
+
+###PMAP
+
+Finally we are going to look at `pmap`, which is *like map, except f is applied in parallel*. This function is *only useful for computationally intensive functions where the time of f dominates the coordination overhead*.
+
+We need `my-pmap` to return the same result as `map`, so we can write a first test: `(should= (map inc [1 2]) (my-pmap inc [1 2]))`. We can get this test to pass by writing the function to just call `my-map`.
+
+	(defn my-pmap
+		([f coll]
+			(my-map f coll)))
+
+To mimic a computationally intense function, we can write a long-running function by inserting a sleep (`Thread/sleep 1000` will cause the thread to block for 1000 ms), and then adding `10` to the input:
+
+	(defn long-running-job [n]
+	    (Thread/sleep 1000)
+	    (+ n 10))
+
+We can test to check that the long-running-function takes more that 1 s to run for each number (the 1 s sleep time plus some execution time) by using the system time, and checking it before and after calling the function:
+
+		(should (< 1.0 (let [st (System/nanoTime)]
+					(long-running-job 1)
+					(/ (- (System/nanoTime) st) 1e9))))
+
+If we try to do the same thing for `(map long-running-fuction [1 2 3 4])` the test will fail. We might expect this function to take a little over 4 s to run (the `long-running-function` is called four times by `map`), but it actually completes in a fraction of a second. Why? Remember that `map` is lazy, and the time we are measuring is the time to make a new lazy-seq, not the time to actually execute it. Let's write a test where we call a function named `test-time` and pass it a map type, function and collection: `(should (< 4.0 (test-time map long-running-job [1 2 3 4])))`.
+
+We can write `test-time`, and measure the time to evaluate `realize-lazy-seq`. `realize-lazy-seq` will recursively loop through the lazy sequence after each part is evaluated. 
+
+	(defn realize-lazy-seq [map-type f c]
+		(loop [res (map-type f c)]
+	    		(when res (recur (next res)))))
+
+	(defn test-time [map-type f c]
+		(let [st (System/nanoTime)]
+			(realize-lazy-seq map-type f c)
+				(/ (- (System/nanoTime) st) 1e9)))
+
+Now when we run our tests they pass, so let's put in a new test where we will `test-time` for `my-pmap`, using the same function and collection as before. If our implementation of pmap works then it should complete in less than 4 s. Indeed, if it completes each function in parallel then it should take just over 1 s. `(should (> 4.0 (test-time my-pmap long-running-job [1 2 3 4])))`
+
+This fails, because currently `my-pmap` is just calling `my-map`, so it will apply `f` to each item in the collection in turn. What we want is for `f` to be applied in parallel, and we can achieve this using Clojure [futures](https://clojuredocs.org/clojure.core/future). If we invoke `future` every time we call `f` on each item, they will be evaluated in an available thread from the thread pool and the results cached until we call them with `deref`, and so in this way we can utilise multiple threads.
+
+We can set a local variable name `results` to be `(my-map #(future (f %)) coll)`. This will generate a lazy sequence of future results, where `f` has been applied to each item in `coll` as a future. We might then imagine that we could map the futures to a new lazy sequence by applying the function `deref` to `results` to return the evaluations.
+
+	(defn my-pmap
+		([f coll]
+			(let [results (my-map #(future (f %)) coll)]
+					(my-map deref results))))
+
+However, when we run our tests the last test fails. We can modify the test by wrapping the function that we are calling in `time`, and this will print the execution time: `(should (> 1.1 (time (test-time my-pmap long-running-job [1 2 3 4]))))`
+
+Now when we run the test it tells us that it takes just over 4000 ms to execute - the same time that it takes `map`. So, what is wrong? Again, it is all down to lazy sequences. When we set `results` we are just generating the lazy sequence, and not evaluating it. We only evaluate `results` when we call `deref`, so each future is generated and then immediately dereferenced, with the thread blocked until the result is available. In this way, we generate the result of applying the function to each item in the array in sequence, and not in parallel.
+
+To make the function work in parallel we need to generate all of the futures before we start to dereference. To do this we can make use of the fact that when we use `conj` the resut will be realised immediately. We can recursively iterate through the collection, applying `f` as a future to each item and `conj`ing this to an accumulator, `acc`, initialised as an empty vector. In this manner we initiate each future as we iterate through. We can then return `acc` as the escape from the recursion after we have iterated through all items. Now we have a collection of futures, which we can bind to `results`, and so we can map this collection by applying `deref` to return the futures.
+
+	(defn my-pmap
+		([f coll]
+			(let [results
+				(loop [remaining coll acc []]
+					(if (seq remaining)
+						(recur (rest remaining) (conj acc (future (f (first remaining)))))
+						acc))]
+				(my-map deref results))))
+
+
+Our tests now pass! Indeed, our implementation `my-pmap` completes the test in just over 1 s, compared to 4 s for `map`.
+
+Does what we are doing in `results` look familiar? We are taking an input collection, applying a function to each element in turn, and returning a single item - a vector. We know that we can perform this type of data manipulation with `my-reduce`, so let's refactor. Our initial `val` is the empty vector, and we want to `conj` into `val` the `future` of applying `f` to each element of the `coll`.
+
+	(defn my-pmap [f coll]
+			(let [results (my-reduce #(conj %1 (future (f %2))) [] coll)]
+				(my-map deref results))) 
+
+Our refactored code using `my-reduce` looks cleaner, and the tests still pass. We just need to be aware that removing the recur special operator exposes us to potential stack overflows.
+
+Let's now make sure that `my-pmap` can work with multiple collections. We can write tests that will map a function over two collections and check that they return the correct result and in a time that confirms the functions were applied in parallel.
+
+Using the same approach that we did for `my-map`, we can convert our collections into a single sequence of reordered collections, and reuse the `reorder` function.
+
+	(defn my-pmap
+		([f coll]
+			(let [results (my-reduce #(conj %1 (future (f %2))) [] coll)]
+				(my-map deref results)))
+		([f c1 & colls]
+	    		(my-pmap #(apply f %) (reorder (cons c1 colls)))))
+
+This works, and as with all the previous functions we can write a property-based test to confirm that the function behaves as the original.
+
 
 
 
