@@ -356,9 +356,12 @@ Using the same approach that we did for `my-map`, we can convert our collections
 
 This works, and as with all the previous functions we can write a property-based test to confirm that the function behaves as the original.
 
+##Conclusions
 
+As an experienced skydiver you may feel confident about taking a first BASE jump. However, there are a lot of considerations, a lot that you need to understand, before you can take the leap in relative safety. The higher altitude of a skydive means you can reach faster speeds before deploying your parachute, whereas it is normally not possible to reach terminal velocity during a BASE jump. The lower airspeeds during a BASE jump mean jumpers have less aerodynamic control of their bodies, so a clean parachute deployment is more difficult. The lower control and jumping close to a structure also vastly increases the risk of a collision, both before and after parachute deployment. As such, the inputs to the jump - the position of the jumper as they leap and the equipment that they use - are critical to a successful flight.
 
+The same requirement to really understand how everything is working is equally as relevent to software development, or any other activity for that matter, although the consequences might not be as immediately life-impacting.
 
+Every day when we write code, in whichever language we chose, our life is made easier and more efficient by the use of the core functions of the language. However, reliance on the hidden code comes at a risk, and if you don't fully understand what is happening then you risk undesired outcomes, and you may also be missing out on additional functionality. We should all strive to unveil the magic at the surface, and really dig deep so as to better know our craft.
 
-
-
+The source code for the above implementations of `reduce`, `count`, `filter`, `map` and `pmap`, together with the unit and property tests, are all available on [github](https://github.com/jonathangraham/clojure_functions).
