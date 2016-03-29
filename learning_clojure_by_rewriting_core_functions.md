@@ -1,13 +1,13 @@
 #Learning Clojure by Implementing Versions of Core Functions
-[Jonathan Graham](https://twitter.com/graham_jp), Mar 23rd, 2016
+[Jonathan Graham](https://twitter.com/graham_jp)
 
 ###Introduction
 
-There are lots of approaches to learning a new language, and [Clojure](https://clojure.org/) has many great resources. For those that are active learners, the [Clojure koans](http://clojurekoans.com/) and [4Clojure](https://www.4clojure.com/) exercises provide a wonderful opportunity to explore the language. There are also plenty of books to get you started, including [Carin Meier's](https://twitter.com/gigasquid) [Living Clojure](http://shop.oreilly.com/product/0636920034292.do), that I [reviewed](http://jonathangraham.github.io/2015/07/28/Book%20Review%20for%20Living%20Clojure/) and takes a very hands-on approach to learning.  
+There are lots of approaches to learning a new language, and [Clojure](https://clojure.org/) has many great resources. For those that are active learners, the [Clojure koans](http://clojurekoans.com/) and [4Clojure](https://www.4clojure.com/) exercises provide a wonderful opportunity to explore the language. There are also plenty of books to get you started, including [Carin Meier's](https://twitter.com/gigasquid) [Living Clojure](http://shop.oreilly.com/product/0636920034292.do) that takes a very hands-on approach to learning (read a [review](http://jonathangraham.github.io/2015/07/28/Book%20Review%20for%20Living%20Clojure/) for more details).  
 
 Another approach when trying to gain a fundamental understanding of how a language works is to implement your own versions of some of the core features. In this blog post we will be focusing on Clojure, but the approach is equally valid for all languages.
 
-We will implement versions of `reduce`, `count`, `filter`, `map`, and `pmap`, and in doing so we will explore, amongst other things, recursion, lazy sequences, and futures. The goal for the models of the core functions that we implement is to generate the same output as those produced by the core language, given any valid input. For the purpose of this blog, we will not be considering the processing efficiency of the functions that we write.
+We will implement models of `reduce`, `count`, `filter`, `map`, and `pmap`, and in doing so will explore, amongst other things, recursion, lazy sequences, and futures. The goal for the models of the core functions that we implement is to generate the same output as those produced by the core language, given any valid input. For the purpose of this blog, we will not be considering the processing efficiency of the functions that we write.
 
 
 ###REDUCE
@@ -34,13 +34,13 @@ We can start with the case where `f` has two arguments: `val` and `coll`. We nee
 
 This will work fine unless the collection gets too big. The recursion consumes stack space, and so eventually we will generate a stack overflow. For example, we generate a StackOverflowError if we run `(my-reduce + 0 (range 10000))`.
 
-We can avoid this by using the `recur` special operator, which does constant-space recursive looping by rebinding and jumping to the nearest enclosing loop or function frame, and so giving us tail-call optimization. To gain this optimization, all we need to do is replace the `my-reduce` call with `recur`. We this change made, we can safely run `(my-reduce + 0 (range 1000000000))` and beyond.
+We can avoid this by using the `recur` special operator, which does constant-space recursive looping by rebinding and jumping to the nearest enclosing loop or function frame, and so giving us tail-call optimization. To gain this optimization, all we need to do is replace the `my-reduce` call with `recur`. With this change made, we can safely run `(my-reduce + 0 (range 1000000000))` and beyond.
 
 Let's move to the situation where `val` is not supplied. In this case `reduce` should return the result of applying `f` to the first 2 items in `coll`, then apply `f` to that result and the 3rd item, etc.
 
 To allow for this, we can add an arity taking in just `f` and `coll`, which then calls `my-reduce`, passing in `(first coll)` to `val`, and `(rest coll)` to `coll`. Our `my-reduce` function already works when there is an empty `coll`, so this should work as long as we have at least one item in our collection.
 
-Finally, if we pass in no `val` and an empty `coll`, we need to return the result of evaluating `f` with no arguments. Again, we can use `(seq coll)` to direct the path of execution.
+Finally, if we pass in an empty collection and no initial value, we need to return the result of evaluating `f` with no arguments. Again, we can use `(seq coll)` to direct the path of execution.
 
 	(defn my-reduce 
 		([f coll]
@@ -58,12 +58,14 @@ Another thing we may have learned about `reduce` is that even if we have a funct
 
 ###COUNT
 
-Now we have written our implementation of `reduce`, let's move on to `count`:
+Many other functions become easy to write now that we have written a version of `reduce`. We can demonstrate this with `count`:
 
 `(count coll)`
 *Returns the number of items in the collection. (count nil) returns 0. Also works on strings, arrays, and Java Collections and Maps.*
 
-So, we need to iterate through a collection, increasing a counter for each item, and return a single count value. We have already seen how to reduce a collection to a single value, so let's use `my-reduce`to define `my-count`. We need to set an initial `val` to 0, so that `my-reduce` returns 0 for an empty collection. If the collection is not empty, we need a function that will increment the count result each time that the function is called. This function needs two arguments: the count result, which is initially 0; and the collection. Since the function is only concerned with the result, which will be incremented by 1 every time that it is called, we can use an `_`, rather than a name, for the collection. If we put this all this together we get:
+So, we need to iterate through a collection, increasing a counter for each item, and return the single count value. We have already seen how to reduce a collection to a single value, so let's use `my-reduce`to define `my-count`. 
+
+We need to set an initial `val` to 0, so that `my-reduce` returns 0 for an empty collection. If the collection is not empty, we need a function that will increment the count result each time that the function is called. This anonymous function needs two arguments: the count result and the collection. Since the function is only concerned with the result, which will be incremented by 1 every time that it is called (`(inc result)`, we can use an `_`, rather than a name, for the collection. If we put this all this together we get:
 
 	(defn my-count [coll]
 		(my-reduce (fn [result _](inc result)) 0 coll))
@@ -77,9 +79,9 @@ A lazy sequence can be created by the macro `lazy-seq`. This takes a body of exp
 
 To demonstrate how lazy sequences work, let's first build a function that doesn't implement them correctly. 
 
-We can build a recursive function, and start our recursive call by setting `input` to the `coll` that we pass in and `result` to `[]`. We could have `result` initialised with any collection, or indeed an empty collection of the same type as the input, but by using a vector we can use `conj` to add items to the end, and not worry that different data sets use `conj` in different ways. 
+We can build a recursive function, and start our recursive call by setting `input` to the `coll` that we pass in, and `result` to an empty vector. We could have `result` initialised with any collection, or indeed an empty collection of the same type as the input, but by using a vector we can use `conj` to add items to the end, and not worry that different data sets use `conj` in different ways. 
 
-We will then consider each item in turn, recursing with `(rest input)`, until the collection is empty, at which point we want to return the `result` as a lazy sequence: `(lazy-seq result)`. So, what do we do with each item? We want to check if `pred` on the item returns true, and if it does `conj` the item to our `result` and recurse this, and if not just recurse the unaltered `result`. 
+We will then consider each item in turn, recursing with `(rest input)`, until the collection is empty, at which point we want to return the `result` as a lazy sequence: `(lazy-seq result)`. So, what do we do with each item? We want to check if `pred` on the item returns true. If it does we `conj` the item to our `result` and recurse this, and if not we just recurse the unaltered `result`. 
 
 	(defn my-filter [pred coll]
 		(loop [input coll result []]
@@ -96,7 +98,7 @@ We could move `lazy-seq` to the front of the recur loop, but we would still not 
 
 In terms of laziness, there is a difference between `conj` and `cons`. The behaviour of `conj` depends on the collection type, so will need to be realised immediately. However, `cons` adds an item to the start of a collection, with everything else coming after, and so can be evaluated lazily. 
 
-Let's re-write our `my-filter` function so that it is lazy. We can start with `lazy-seq` and pass it a `when` block, using the predicate `(seq coll)`, as it's body of expression. As before, the `when` block will exit with an empty collection. If we do have a sequence we want to apply the filter predicate to the first item of the collection. If the predicate returns true we can `cons` the `(first coll)` onto the filtered collection to come: `(my-filter pred (rest coll))`. If the predicate returns false then we simply call `my-filter` with the `(rest coll)`. Nothing will get evaluated until we reach the tail of the recursion, when the collection is empty. If we put this altogether we get:
+Let's re-write our `my-filter` function so that it is lazy. We can start with `lazy-seq` and pass it a `when` block, using the predicate `(seq coll)`, as it's body of expression. As before, the `when` block will exit with an empty collection. If we do have a sequence, we want to apply the filter predicate to the first item of the collection. If the predicate returns true we can `cons` the `(first coll)` onto the filtered collection to come: `(cons (first coll) (my-filter pred (rest coll)))`. If the predicate returns false then we simply call `my-filter` with the `(rest coll)`. Nothing will get evaluated until we reach the tail of the recursion, when the collection is empty. If we put this altogether we get:
 
 	(defn my-filter [pred coll]
 		(lazy-seq 
@@ -107,7 +109,7 @@ Let's re-write our `my-filter` function so that it is lazy. We can start with `l
 
 We are now evaluating lazily, and we have our basic implementation of `filter`. For the purposes of this blog we will not cover the scenario where no collection is provided to filter, which would return a transducer.
 
-One thing to note about `filter` is that it will return a lazy seq, rather than the input collection type. If we want to continue processing with the same collection type that we had then we will have to pass the output from filter `into` the required collection type, e.g. `(into [] (my-filter even? [0 1 2 3 4 5]))` will return `[0 2 4]`.
+One thing to note about `filter` is that it will return a lazy seq, rather than the input collection type. If we want to continue processing with the same collection type as the input, we will have to pass the output from filter `into` the required collection type, e.g. `(into [] (my-filter even? [0 1 2 3 4 5]))` will return `[0 2 4]`.
 
 ###MAP
 
@@ -132,9 +134,11 @@ We could extend `my-map` to also take `[f c1 c2]`. We would need to apply `f` to
 			(lazy-seq (when (and (seq c1) (seq c2))
 					(cons (f (first c1) (first c2)) (my-map f (rest c1) (rest c2)))))))
 
-Given we cannot write arities for all possible numbers of collection, we instead need to write one that can take any number of arguments.
+Given we cannot write arities for all possible numbers of collections, we instead need to write one that can take any number of arguments.
 
-What we want is to convert the input collections to a single sequence, where the first item is a collection of all the first elements, the second item is a collection of all the second elements, etc. If we have this collection of reordered collections we can just map the result of applying the function to each collection in turn. We can create a single collection by adding the first collection, `c1`, to the other collections, `colls`. Let's then pass this concatenated collection to a function named reorder. 
+If we could convert the input collections to a single sequence, where the first item is a collection of all the first elements, the second item is a collection of all the second elements, etc, we could just map the result of applying the function to each collection in turn. 
+
+To do this, we can first create a single collection by adding the first collection, `c1`, to the other collections, `colls`. We can then pass this concatenated collection to a function named reorder. 
 
 We need `reorder` to take the first item from each collection and map it to a new collection, and add this to all the other reordered collections to come until one of the collections is empty. Since the two functions, `my-map` and `reorder`, are mutually recursive, we need to delare them. If we put this all together we get:
 
@@ -158,7 +162,7 @@ Finally we are going to look at `pmap`.
 `(pmap f coll)` `(pmap f coll & colls)`
 *Like map, except f is applied in parallel. Semi-lazy in that the parallel computation stays ahead of the consumption, but doesn't realize the entire result unless required. Only useful for computationally intensive functions where the time of f dominates the coordination overhead.*
 
-We can apply `f` in parallel by using Clojure [futures](https://clojuredocs.org/clojure.core/future). If we invoke `future` every time we call `f` on each item, they will be evaluated in an available thread from the thread pool and the results cached until we call them with `deref`, and so in this way we can utilise multiple threads.
+We can apply `f` in parallel using Clojure [futures](https://clojuredocs.org/clojure.core/future). If we invoke `future` every time we call `f` on each item, they will be evaluated in an available thread from the thread pool, and the results cached until we call them with `deref`. In this way we can utilise multiple threads.
 
 We can set a local variable name `results` to be `(my-map #(future (f %)) coll)`. This will generate a lazy sequence of future results, where `f` has been applied to each item in `coll` as a future. We might then imagine that we could map the futures to a new lazy sequence by applying the function `deref` to `results` to return the evaluations.
 
@@ -169,7 +173,7 @@ We can set a local variable name `results` to be `(my-map #(future (f %)) coll)`
 
 However, when we set `results` we are just generating the lazy sequence, and not evaluating it. We only evaluate `results` when we call `deref`, so each future is generated and then immediately dereferenced, with the thread blocked until the result is available. In this way, we generate the result of applying the function to each item in the array in sequence, and not in parallel.
 
-To make the function work in parallel we need to generate all of the futures before we start to dereference, hence why `pmap` is semi-lazy. To do this we can make use of the fact that when we use `conj` the resut will be realised immediately. We can recursively iterate through the collection, applying `f` as a future to each item and `conj`ing this to an accumulator, `acc`, initialised as an empty vector. In this manner we initiate each future as we iterate through. We can then return `acc` as the escape from the recursion after we have iterated through all items. Now we have a collection of futures, which we can bind to `results`, and so we can map this collection by applying `deref` to return the futures.
+To make the function work in parallel we need to generate all of the futures before we start to dereference, hence why `pmap` is semi-lazy. To do this we can make use of the fact that when we use `conj` the resut will be realised immediately. We can recursively iterate through the collection, applying `f` as a future to each item and `conj`ing this to an accumulator, `acc`, initialised as an empty vector. In this manner we initiate each future as we iterate through. We can then return `acc` as the escape from the recursion after we have iterated through all items. Now we have a collection of futures, which we can bind to `results`, we can map this collection by applying `deref` to return the futures.
 
 	(defn my-pmap
 		([f coll]
@@ -197,10 +201,10 @@ Let's now make sure that `my-pmap` can work with multiple collections. Using the
 
 ##Conclusions
 
-We can learn a lot about a language by writing our own implementations of some of the core functions. In writing versions of `reduce`, `count`, `filter`, `map`, and `pmap`, not only have we seen how these work, but we have also explored a lot more of the functionality of Clojure, inclusing the use of `recur`, `lazy-seq`, and `futures`.
+We can learn a lot about a language by writing our own implementations of some of the core functions. In writing versions of `reduce`, `count`, `filter`, `map`, and `pmap`, not only have we seen how these work, but we have also explored a lot more of the functionality of Clojure, including the use of `recur`, `lazy-seq`, and `futures`.
 
 How do we know the code all works as it should?
 
-The implementations were built-up in a TDD fashion, with the unit tests writen using the [speclj](http://speclj.com) framework (run with `lein spec`). Additionally, property-based tests were writen for all the functions, using [test.check](https://github.com/clojure/test.check) (run with `lein test`). Look out for a future post about property-based testing.  
+The implementations were built-up in a TDD fashion, with the unit tests written using the [speclj](http://speclj.com) framework (run with `lein spec`). Additionally, property-based tests were writen for all the functions, using [test.check](https://github.com/clojure/test.check) (run with `lein test`). Look out for a future post about property-based testing.  
 
 The source code for the above implementations, together with the unit and property-based tests, are all available on [github](https://github.com/jonathangraham/clojure_functions).
